@@ -13,7 +13,7 @@ A Python project template with FastAPI library and modern development tooling.
 - **Environment Configuration** - dotenv support with .env and .env.local files
 - **Database Repository Pattern** - SQLite connection management with context managers
 - **Service Layer Architecture** - Clean separation between API, service, and data layers
-- **Comprehensive Tooling** - Custom scripts for project management and database operations
+- **Tooling** - Custom scripts for dev management and misc operations
 - **GitHub Integration** - Automated repository setup and URL configuration
 - **MCP Server Support** - Model Context Protocol server configuration
 
