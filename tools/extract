@@ -1,0 +1,261 @@
+#!/usr/bin/env bash
+
+# Function extraction tool using ripgrep
+# Supports Python, JavaScript, and Go
+
+set -euo pipefail
+
+RG="/opt/homebrew/bin/rg"
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to display usage
+usage() {
+    echo -e "${BLUE}╭──────────────────────────────────────────────────────────────────╮${NC}"
+    echo -e "${BLUE}│                          ${GREEN}EXTRACT${NC} ${BLUE}- Function Extractor Tool                   │${NC}"
+    echo -e "${BLUE}╰──────────────────────────────────────────────────────────────────╯${NC}"
+    echo ""
+    echo -e "${YELLOW}📋 DESCRIPTION:${NC}"
+    echo -e "   Extracts complete function definitions from source code files using ripgrep"
+    echo ""
+    echo -e "${YELLOW}🚀 USAGE:${NC}"
+    echo -e "   ${GREEN}$0${NC} ${BLUE}<file_or_directory>${NC} ${BLUE}<function_signature>${NC}"
+    echo ""
+    echo -e "${YELLOW}📝 ARGUMENTS:${NC}"
+    echo -e "   ${BLUE}file_or_directory${NC}    Path to file or directory to search"
+    echo -e "   ${BLUE}function_signature${NC}   Function signature to find ${YELLOW}(must be quoted)${NC}"
+    echo ""
+    echo -e "${YELLOW}⚙️  OPTIONS:${NC}"
+    echo -e "   ${GREEN}--help${NC}              Show this help message"
+    echo -e "   ${GREEN}--llm${NC}               Show detailed LLM usage documentation"
+    echo ""
+    echo -e "${YELLOW}💻 EXAMPLES:${NC}"
+    echo -e "   ${GREEN}# Python async function:${NC}"
+    echo -e "   $0 file.py ${BLUE}\"async def fetch_urls(urls: List[str], ctx: Context = None) -> str:\"${NC}"
+    echo ""
+    echo -e "   ${GREEN}# JavaScript function in current directory:${NC}"
+    echo -e "   $0 . ${BLUE}\"function processData(items) {\"${NC}"
+    echo ""
+    echo -e "   ${GREEN}# Go function from specific file:${NC}"
+    echo -e "   $0 main.go ${BLUE}\"func handleRequest(w http.ResponseWriter, r *http.Request) {\"${NC}"
+    echo ""
+    echo -e "${YELLOW}🔧 SUPPORTED LANGUAGES:${NC}"
+    echo -e "   ${GREEN}•${NC} Python ${BLUE}(.py)${NC} - Uses indentation-based extraction"
+    echo -e "   ${GREEN}•${NC} JavaScript ${BLUE}(.js)${NC} - Uses brace-matching extraction"  
+    echo -e "   ${GREEN}•${NC} Go ${BLUE}(.go)${NC} - Uses brace-matching extraction"
+    echo ""
+    exit 1
+}
+
+# Function to display LLM usage documentation
+llm_usage() {
+    echo -e "${BLUE}╭──────────────────────────────────────────────────────────────────────────╮${NC}"
+    echo -e "${BLUE}│                     ${GREEN}EXTRACT${NC} ${BLUE}- LLM Usage Documentation                        │${NC}"
+    echo -e "${BLUE}╰──────────────────────────────────────────────────────────────────────────╯${NC}"
+    echo ""
+    echo -e "${YELLOW}🎯 PURPOSE:${NC}"
+    echo -e "   ${GREEN}•${NC} Extracts complete function definitions from source code files"
+    echo -e "   ${GREEN}•${NC} Uses ripgrep for fast searching and intelligent language-specific parsing"
+    echo -e "   ${GREEN}•${NC} Preserves original formatting, indentation, and comments"
+    echo ""
+    echo -e "${YELLOW}🚀 USAGE SYNTAX:${NC}"
+    echo -e "   ${GREEN}extract${NC} ${BLUE}<file_or_directory>${NC} ${BLUE}<function_signature>${NC}"
+    echo ""
+    echo -e "${YELLOW}📥 PARAMETERS:${NC}"
+    echo -e "   ${BLUE}file_or_directory${NC}  │ Path to search (single file or directory)"
+    echo -e "   ${BLUE}function_signature${NC} │ Function signature to find ${RED}(MUST be quoted)${NC}"
+    echo ""
+    echo -e "${YELLOW}⚡ BEHAVIOR:${NC}"
+    echo -e "   ${GREEN}✓${NC} Searches for exact function signature matches"
+    echo -e "   ${GREEN}✓${NC} Extracts complete function body using language-specific rules:"
+    echo -e "      ${BLUE}•${NC} ${GREEN}Python:${NC} Indentation-based extraction (respects Python syntax)"
+    echo -e "      ${BLUE}•${NC} ${GREEN}JavaScript/Go:${NC} Brace-matching extraction (tracks { } pairs)"
+    echo -e "   ${GREEN}✓${NC} Handles multiple matches across different files"
+    echo -e "   ${GREEN}✓${NC} Preserves original formatting and comments"
+    echo -e "   ${GREEN}✓${NC} Automatically trims leading whitespace from signatures"
+    echo ""
+    echo -e "${YELLOW}📤 OUTPUT FORMAT:${NC}"
+    echo -e "   ${GREEN}•${NC} File location and line number for each match"
+    echo -e "   ${GREEN}•${NC} Language detection and identification"
+    echo -e "   ${GREEN}•${NC} Complete function definition with proper formatting"
+    echo -e "   ${GREEN}•${NC} Visual separators for multiple matches"
+    echo ""
+    echo -e "${YELLOW}💡 EXAMPLES:${NC}"
+    echo -e "   ${GREEN}# Extract Python async function from current directory${NC}"
+    echo -e "   extract . ${BLUE}\"async def fetch_urls(urls: List[str], ctx: Context = None) -> str:\"${NC}"
+    echo ""
+    echo -e "   ${GREEN}# Extract JavaScript function from specific file${NC}"
+    echo -e "   extract app.js ${BLUE}\"function processData(items) {\"${NC}"
+    echo ""
+    echo -e "   ${GREEN}# Extract Go function with complex signature${NC}"
+    echo -e "   extract main.go ${BLUE}\"func handleRequest(w http.ResponseWriter, r *http.Request) {\"${NC}"
+    echo ""
+    echo -e "   ${GREEN}# Extract Python class method${NC}"
+    echo -e "   extract src/ ${BLUE}\"def process_data(self, items: List[Dict]) -> None:\"${NC}"
+    echo ""
+    echo -e "${YELLOW}⚙️  SYSTEM REQUIREMENTS:${NC}"
+    echo -e "   ${RED}•${NC} ripgrep (rg) must be installed at ${BLUE}/opt/homebrew/bin/rg${NC}"
+    echo -e "   ${RED}•${NC} Source files must use supported extensions ${BLUE}(.py, .js, .go)${NC}"
+    echo ""
+    echo -e "${YELLOW}🔧 SUPPORTED LANGUAGES:${NC}"
+    echo -e "   ${GREEN}Python${NC}     │ ${BLUE}.py${NC}  │ Indentation-based parsing"
+    echo -e "   ${GREEN}JavaScript${NC} │ ${BLUE}.js${NC}  │ Brace-matching parsing" 
+    echo -e "   ${GREEN}Go${NC}         │ ${BLUE}.go${NC}  │ Brace-matching parsing"
+    echo ""
+    echo -e "${YELLOW}⚠️  IMPORTANT NOTES:${NC}"
+    echo -e "   ${RED}•${NC} Function signatures ${RED}MUST${NC} be quoted to handle special characters"
+    echo -e "   ${RED}•${NC} Searches are case-sensitive and whitespace-sensitive"
+    echo -e "   ${RED}•${NC} Use exact function signature as it appears in source code"
+    echo -e "   ${RED}•${NC} Leading whitespace is automatically trimmed during search"
+    echo ""
+    echo -e "${YELLOW}🔍 SEARCH STRATEGY:${NC}"
+    echo -e "   ${GREEN}•${NC} Uses fixed-string matching for reliability"
+    echo -e "   ${GREEN}•${NC} Searches only in supported file extensions when using directory mode"
+    echo -e "   ${GREEN}•${NC} Returns all matches with complete context"
+    exit 0
+}
+
+# Check for help flags
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    usage
+fi
+
+# Check for --llm flag
+if [ $# -eq 1 ] && [ "$1" = "--llm" ]; then
+    llm_usage
+fi
+
+# Check arguments
+if [ $# -ne 2 ]; then
+    usage
+fi
+
+FILE_OR_DIR="$1"
+FUNCTION_SIGNATURE="$2"
+
+# Function to extract Python function (indentation-based)
+extract_python_function() {
+    local file="$1"
+    local line_num="$2"
+    local signature="$3"
+    
+    # Get the indentation level of the function definition
+    local indent=$($RG -n --no-heading --fixed-strings "$signature" "$file" | head -1 | sed 's/^[0-9]*://' | sed 's/\(^[ \t]*\).*/\1/' | wc -c)
+    indent=$((indent - 1))
+    
+    # Extract from the function line until we return to same or lower indentation
+    # or reach end of file
+    awk -v start="$line_num" -v base_indent="$indent" '
+        NR == start { print; in_function=1; next }
+        in_function {
+            # Skip empty lines and comments
+            if (/^[ \t]*$/ || /^[ \t]*#/) {
+                print
+                next
+            }
+            # Check indentation
+            match($0, /^[ \t]*/)
+            current_indent = RLENGTH
+            if (current_indent <= base_indent && $0 !~ /^[ \t]*$/) {
+                exit
+            }
+            print
+        }
+    ' "$file"
+}
+
+# Function to extract JavaScript/Go function (brace-based)
+extract_brace_function() {
+    local file="$1"
+    local line_num="$2"
+    local signature="$3"
+    
+    # Extract from the function line, counting braces
+    awk -v start="$line_num" '
+        NR >= start {
+            print
+            # Count braces
+            for (i = 1; i <= length($0); i++) {
+                char = substr($0, i, 1)
+                if (char == "{") brace_count++
+                else if (char == "}") brace_count--
+            }
+            # If we started (found at least one brace) and now balanced, exit
+            if (NR > start && brace_count == 0 && found_brace) exit
+            if (brace_count > 0) found_brace = 1
+        }
+    ' "$file"
+}
+
+# Function to determine file type
+get_file_type() {
+    local file="$1"
+    case "${file##*.}" in
+        py) echo "python" ;;
+        js) echo "javascript" ;;
+        go) echo "go" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+# Search for the function signature
+echo -e "${BLUE}Searching for function: ${YELLOW}$FUNCTION_SIGNATURE${NC}"
+
+# Use ripgrep to find the function
+# For simpler and more reliable matching, use fixed string search with looser matching
+if [ -f "$FILE_OR_DIR" ]; then
+    # Single file mode - search for the signature (without leading spaces)
+    TRIMMED_SIG=$(echo "$FUNCTION_SIGNATURE" | sed 's/^[[:space:]]*//')
+    MATCHES=$($RG -n --fixed-strings "$TRIMMED_SIG" "$FILE_OR_DIR" || true)
+else
+    # Directory mode - search only in supported files
+    TRIMMED_SIG=$(echo "$FUNCTION_SIGNATURE" | sed 's/^[[:space:]]*//')
+    MATCHES=$($RG -n --fixed-strings "$TRIMMED_SIG" -g "*.py" -g "*.js" -g "*.go" "$FILE_OR_DIR" || true)
+fi
+
+if [ -z "$MATCHES" ]; then
+    echo -e "${RED}Error: Function signature not found${NC}"
+    exit 1
+fi
+
+# Process each match
+echo "$MATCHES" | while IFS=: read -r first second rest; do
+    # Determine if we're in single file or directory mode
+    if [ -f "$FILE_OR_DIR" ]; then
+        # Single file mode: first is line number, FILE_OR_DIR is the file
+        file="$FILE_OR_DIR"
+        line_num="$first"
+    else
+        # Directory mode: first is file, second is line number
+        file="$first"
+        line_num="$second"
+    fi
+    
+    FILE_TYPE=$(get_file_type "$file")
+    
+    if [ "$FILE_TYPE" = "unknown" ]; then
+        echo -e "${RED}Error: Unsupported file type for $file${NC}"
+        continue
+    fi
+    
+    echo -e "\n${GREEN}Found in: ${NC}$file:$line_num"
+    echo -e "${GREEN}Language: ${NC}$FILE_TYPE"
+    echo -e "${GREEN}Function:${NC}"
+    echo "----------------------------------------"
+    
+    case "$FILE_TYPE" in
+        python)
+            extract_python_function "$file" "$line_num" "$TRIMMED_SIG"
+            ;;
+        javascript|go)
+            extract_brace_function "$file" "$line_num" "$TRIMMED_SIG"
+            ;;
+    esac
+    
+    echo "----------------------------------------"
+done

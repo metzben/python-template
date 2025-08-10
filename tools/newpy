@@ -1,0 +1,683 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Function to display usage
+usage() {
+    echo "Usage: $0 <project_name>"
+    echo ""
+    echo "Creates a new UV-based Python project with FastAPI template"
+    echo ""
+    echo "Arguments:"
+    echo "  project_name        Name of the Python project to create"
+    echo ""
+    echo "Options:"
+    echo "  --help             Show this help message"
+    echo "  --llm              Show LLM usage documentation"
+    echo ""
+    echo "Examples:"
+    echo "  $0 my-api-server"
+    echo "  $0 data-processor"
+    echo ""
+    echo "The project will be created in ~/python/<project_name>/"
+}
+
+# Function to display LLM usage documentation
+llm_usage() {
+    echo "=== LLM Usage Documentation for newpy ==="
+    echo ""
+    echo "PURPOSE:"
+    echo "  Creates a complete Python project using UV for dependency management"
+    echo "  with FastAPI web framework and development tooling"
+    echo ""
+    echo "USAGE:"
+    echo "  $0 <project_name>"
+    echo ""
+    echo "PARAMETERS:"
+    echo "  project_name: Name for the Python project"
+    echo ""
+    echo "BEHAVIOR:"
+    echo "  - Creates project directory in ~/python/<project_name>/"
+    echo "  - Initializes UV project with virtual environment"
+    echo "  - Uses 'uv add' to install dependencies and manage pyproject.toml"
+    echo "  - Installs common dependencies (FastAPI, uvicorn, ruff, black, pytest, etc.)"
+    echo "  - Creates main.py with FastAPI server template"
+    echo "  - Creates config.py with dotenv configuration"
+    echo "  - Sets up database migration system with yoyo-migrations"
+    echo "  - Creates SQLite database and migration configuration"
+    echo "  - Creates repository structure with database connection class"
+    echo "  - Generates Makefile with development and database commands"
+    echo "  - Creates Dockerfile for containerization"
+    echo "  - Sets up .env and .env.local files"
+    echo "  - Creates .gitignore with Python/UV-specific exclusions"
+    echo "  - Creates .mcp.json configuration file"
+    echo "  - Creates .claude/commands and .gemini/commands directories"
+    echo "  - Creates _docs/plans structure for structured planning workflow"
+    echo "  - Downloads fetchall script from GitHub using gh CLI"
+    echo "  - Runs fetchall to download tools, command templates, and guides"
+    echo "  - Initializes git repository"
+    echo "  - Optionally creates public GitHub repository (with user confirmation)"
+    echo "  - Automatically launches Claude Code in the new project"
+    echo ""
+    echo "GENERATED FILES:"
+    echo "  - main.py: FastAPI server entry point"
+    echo "  - config.py: Environment configuration with dotenv"
+    echo "  - yoyo.ini: Database migration configuration"
+    echo "  - migrations/: Directory for database migration files"
+    echo "  - baseservice/: Directory for base service components"
+    echo "  - baseservice/base_api.py: FastAPI router with base endpoints"
+    echo "  - baseservice/base_models.py: Pydantic models for data validation"
+    echo "  - baseservice/base_service.py: Business logic service layer"
+    echo "  - repository/database.py: SQLite database connection class"
+    echo "  - data/<project_name>.db: SQLite database file"
+    echo "  - Makefile: Development and database commands"
+    echo "  - Dockerfile: Container configuration"
+    echo "  - .env/.env.local: Environment variables"
+    echo "  - .gitignore: Git exclusions"
+    echo "  - .mcp.json: MCP server configuration"
+    echo "  - pyproject.toml: UV project configuration"
+    echo "  - tools/fetchall: Downloaded tool for fetching additional resources"
+    echo "  - tools/*: Additional tools downloaded by fetchall"
+    echo "  - .claude/commands/*.md: Command templates for Claude"
+    echo "  - .gemini/commands/*.md: Command templates for Gemini (copied from .claude)"
+    echo "  - guides/*.md: Documentation and guides"
+    echo "  - _docs/plans/drafts/: Initial plans under development"
+    echo "  - _docs/plans/approved/: Reviewed plans ready for implementation"
+    echo "  - _docs/plans/completed/: Implemented plans with results"
+    echo "  - movetools: Tool for moving files between projects"
+    echo ""
+    echo "INSTALLED DEPENDENCIES:"
+    echo "  - fastapi: Modern web framework"
+    echo "  - uvicorn: ASGI server"
+    echo "  - ruff: Fast Python linter"
+    echo "  - black: Code formatter"
+    echo "  - pytest: Testing framework"
+    echo "  - pytest-xdist: Parallel test execution"
+    echo "  - python-dotenv: Environment variable management"
+    echo "  - requests: HTTP library"
+    echo "  - pydantic: Data validation"
+    echo "  - marimo: Interactive notebook environment"
+    echo "  - dspy: Framework for programming language models"
+    echo "  - yoyo-migrations: Database migration tool"
+    echo "  - python-json-logger: JSON structured logging"
+    echo ""
+    echo "MAKEFILE COMMANDS:"
+    echo "  - make marimo: Launch marimo notebook editor"
+    echo "  - make ensuregithub: Ensure GitHub URL is set"
+    echo "  - make lint: Run ruff check"
+    echo "  - make format: Run black formatter"
+    echo "  - make test: Run pytest with parallel execution"
+    echo "  - make test-fast: Run tests excluding slow tests"
+    echo "  - make check: Run all quality checks"
+    echo "  - make start: Start the FastAPI server with uv run"
+    echo "  - make migrate: Apply database migrations"
+    echo "  - make migrate-rollback: Rollback database migrations"
+    echo "  - make migrate-status: Check migration status"
+    echo "  - make docker-build: Build Docker image"
+    echo "  - make docker-run: Run Docker container"
+    echo "  - make create-kernal: Install Jupyter kernel"
+    echo ""
+    echo "REQUIREMENTS:"
+    echo "  - UV must be installed and available in PATH"
+    echo "  - Python 3.11+ recommended"
+    echo "  - sqlite3 command available for database creation"
+    echo "  - Write permissions in ~/python/ directory"
+    echo ""
+    echo "POST-CREATION:"
+    echo "  - Automatically activates virtual environment"
+    echo "  - Creates SQLite database file"
+    echo "  - Downloads and runs fetchall script to get all resources"
+    echo "  - Initializes git repository"
+    echo "  - Prompts for GitHub repository creation (creates public repo if confirmed)"
+    echo "  - Adds GITHUB_URL to .env file if repository is created"
+    echo "  - Launches Claude Code in the project directory"
+    echo "  - Ready for FastAPI development with database migrations and version control"
+    exit 0
+}
+
+# Check for help flags
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    usage
+    exit 0
+fi
+
+# Check for LLM flag
+if [ "$1" = "--llm" ]; then
+    llm_usage
+fi
+
+if [[ $# -lt 1 ]]; then
+    echo "Error: Please provide a project name"
+    usage
+    exit 1
+fi
+
+proj="$1"
+# replace with your preferred location of python projects
+BASE="$HOME/python"
+
+# 1. ensure python directory exists, then scaffold
+mkdir -p "$BASE"
+cd "$BASE"
+uv init "$proj"
+
+# 2. enter project, create a standard .venv, activate it
+cd "$proj"
+uv venv
+source .venv/bin/activate
+
+# 3. install your default deps
+uv add fastapi uvicorn ruff black pytest pytest-xdist python-dotenv requests pydantic marimo dspy yoyo-migrations python-json-logger
+
+
+rm main.py
+
+# create all required directories
+mkdir -p .claude/commands
+mkdir -p .gemini/commands
+mkdir -p migrations
+mkdir -p data
+mkdir -p repository
+mkdir -p baseservice
+mkdir -p guides
+mkdir -p tools
+mkdir -p _docs/plans/drafts
+mkdir -p _docs/plans/approved
+mkdir -p _docs/plans/completed
+
+# create yoyo.ini configuration file
+cat > yoyo.ini <<EOF
+[DEFAULT]
+database = sqlite:///data/$proj.db
+migration_table = _yoyo_migration
+batch_mode = off
+verbosity = 0
+EOF
+
+# create database.py file in repository directory
+cat > repository/database.py <<EOF
+import sqlite3
+
+from contextlib import contextmanager
+from typing import Generator
+
+
+class SQLite3Database:
+    def __init__(self, db_path: str = "../data/$proj.db"):
+        self.db_path = db_path
+
+    # Decorator that converts this generator function into a context manager
+    @contextmanager
+    def get_connection(
+            self,
+            read_only: bool = False
+    ) -> Generator[sqlite3.Connection, None, None]:
+        """Context manager for database connections"""
+        # Setup phase: runs when entering 'with' block
+        # Enable PARSE_DECLTYPES to use our custom datetime converters
+        conn = sqlite3.connect(
+            self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+        conn.row_factory = sqlite3.Row  # enables column access by name
+
+        # Connection optimizations
+        conn.execute("PRAGMA foreign_keys = ON")  # enables foreign key support
+        if not read_only:
+            # enables better concurrency
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")  # Faster writes
+        conn.execute("PRAGMA cache_size = -64000")  # 64MB cache
+        # Use memory for temp tables
+        conn.execute("PRAGMA temp_store = MEMORY")
+        conn.execute("PRAGMA mmap_size = 268435456")  # 256MB memory-mapped I/O
+
+        try:
+            yield conn  # Pauses here, returns conn to 'with' statement
+            # Code inside 'with' block runs here
+            if not read_only:
+                conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            # Cleanup phase: always runs when exiting 'with' block
+            conn.close()
+EOF
+
+cat > config.py <<EOF
+from dotenv import load_dotenv
+import os
+
+
+class Config:
+    # Load .env first, then .env.local (which will override .env values)
+    load_dotenv()  # Load .env
+    load_dotenv('.env.local', override=True)  # Load .env.local with override
+
+    def __init__(self) -> None:
+        self.port = os.getenv("PORT")
+        self.db_path = os.getenv("DB_PATH", "data/$proj.db")
+        self.github_url = os.getenv("GITHUB_URL", "")
+EOF
+
+# create baseservice files
+cat > baseservice/base_models.py <<EOF
+from pydantic import BaseModel
+
+
+class User(BaseModel):
+    name: str
+EOF
+
+cat > baseservice/base_service.py <<EOF
+import sqlite3
+from config import Config
+from .base_models import User
+from typing import Optional
+
+
+class BaseService:
+    def __init__(
+            self,
+            conn: sqlite3.Connection,
+            config: Config
+    ):
+        self.conn = conn
+        self.config = config
+
+    def test(self) -> dict:
+        return {
+            "base project": f"Base project working...{self.config.github_url}"
+        }
+
+    def get_user(self, username: str) -> Optional[User]:
+        return User(name=username)
+EOF
+
+cat > baseservice/base_api.py <<EOF
+from fastapi import APIRouter, Depends, Request, HTTPException
+from repository.database import SQLite3Database
+from .base_service import BaseService
+from config import Config
+
+base_router = APIRouter()
+
+
+def get_db_conn(request: Request):
+    db_path = request.app.state.db_path
+    db = SQLite3Database(db_path=db_path)
+    with db.get_connection() as conn:
+        yield conn
+
+
+def get_base_service(request: Request, conn=Depends(get_db_conn)):
+    config = Config()
+    return BaseService(conn, config)
+
+
+@base_router.get("/")
+async def home(baseservice: BaseService = Depends(get_base_service)) -> dict:
+    try:
+        return baseservice.test()
+    except Exception:
+        raise HTTPException(status_code=404, detail="prompt not found")
+
+
+@base_router.get("/health")
+async def health_check() -> dict:
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "$proj_api"}
+
+
+@base_router.get("/user/{username}")
+async def get_user(
+        username: str,
+        baseservice: BaseService = Depends(get_base_service),
+):
+    return baseservice.get_user(username)
+EOF
+
+cat > main.py <<EOF
+from config import Config
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import logging
+from pythonjsonlogger.json import JsonFormatter
+import sys
+from contextlib import asynccontextmanager
+from baseservice.base_api import base_router
+
+# Configure JSON logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler(stream=sys.stdout)
+handler.setFormatter(JsonFormatter())
+handler.setLevel(logging.INFO)
+logger.addHandler(handler)
+
+config = Config()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    logger.info("Starting $proj service...")
+    app.state.db_path = config.db_path
+    logger.info(f"database path set to: {app.state.db_path}")
+    logger.info(f"service running on port: {config.port}")
+
+    yield
+
+    # shutdown
+    logger.info("Shutting down service...")
+
+
+app = FastAPI(
+    title="$proj service api",
+    description="template service for building python projects",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:*", "http://127.0.0.1:*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+app.include_router(base_router, tags=["base_api"])
+
+
+def main():
+    logger.info("Hello from $proj!", extra={"more_data": True})
+
+    logger.info("Server configuration", extra={"port": config.port})
+    uvicorn.run("main:app", host="0.0.0.0", port=int(config.port))
+
+
+if __name__ == "__main__":
+    main()
+EOF
+
+# create SQLite database using createdb pattern
+DB_PATH="data/$proj.db"
+if ! command -v sqlite3 &> /dev/null; then
+    echo "Warning: sqlite3 not found, skipping database creation"
+else
+    if [ ! -f "$DB_PATH" ]; then
+        sqlite3 "$DB_PATH" "VACUUM;"
+        chmod 644 "$DB_PATH"
+        echo "✅  Created SQLite database: $DB_PATH"
+    fi
+fi
+
+# 4. create a Makefile in the project dir
+echo "-> creating Makefile"
+
+cat > Dockerfile <<EOF
+FROM python:3.11-slim-bookworm AS builder
+WORKDIR /app
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Copy only pyproject.toml for dependency resolution
+COPY pyproject.toml /app/
+
+# Install dependencies using uv directly from pyproject.toml
+RUN uv pip install --system --no-cache -r pyproject.toml
+
+# Final stage
+FROM python:3.11-slim-bookworm
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY . .
+
+EXPOSE 8080
+CMD ["python", "main.py"]
+EOF
+
+cat > .mcp.json <<EOF
+{
+	"mcpServers": {
+		"collect": {
+			"command": "/Users/benjaminmetz/.local/bin/uv",
+			"args": [
+				"--directory",
+				"/Users/benjaminmetz/python/collect",
+				"run",
+				"collect.py"
+			]
+		}
+	}
+}
+EOF
+
+
+cat > Makefile <<EOF
+PROJECT_NAME := $proj
+
+marimo:
+	uv run marimo edit
+
+.PHONY: ensuregithub
+ensuregithub:
+	./tools/ensure-github-url
+
+lint:
+	ruff check .
+
+format:
+	black .
+
+test: 
+	uv run pytest -v -s -n auto
+
+test-fast:
+	uv run pytest -v -n auto -m "not slow"
+
+check:
+	make lint
+	make format
+	make ensuregithub
+	make test
+
+start:
+	uv run main.py
+
+docker-build:
+	docker build -t \$(PROJECT_NAME) .
+
+docker-run:
+	docker run -p 8080:8080 \$(PROJECT_NAME)
+
+create-kernal:
+	python -m ipykernel install --user --name \$(PROJECT_NAME) --display-name "Python 3.11 (\$(PROJECT_NAME))"
+
+# Database management
+migrate:
+	yoyo apply --config yoyo.ini --batch
+
+migrate-rollback:
+	yoyo rollback --config yoyo.ini
+
+migrate-status:
+	yoyo list --config yoyo.ini
+EOF
+
+cat > .env <<EOF
+PORT=8081
+GCP_PROJECT_ID=YOURGCPPROJECTIDHERE
+EOF
+
+cat > .env.local <<EOF
+# Local environment variables - this file is typically gitignored
+# Override any .env values here for local development
+# PORT=8082
+EOF
+
+cat > .gitignore <<EOF
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+env/
+
+# Environment variables
+.env.local
+.env.*.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Temporary files
+:w
+*.tmp
+*.temp
+
+# Python version management
+.python-version
+
+# UV lock file (optional - some prefer to track this)
+# uv.lock
+EOF
+
+echo
+echo "✅  UV project '$proj' created in '$BASE/$proj'"
+echo "✅  Makefile generated"
+
+# Fetch fetchall script from GitHub using gh CLI
+echo
+echo "→ fetching fetchall script from GitHub..."
+
+# Create tools directory if it doesn't exist
+mkdir -p tools
+
+# Check if gh CLI is installed
+if command -v gh &> /dev/null; then
+    # Fetch fetchall script from austere-labs/collect repo
+    FETCHALL_CONTENT=$(gh api repos/austere-labs/collect/contents/tools/fetchall --jq '.content' 2>/dev/null)
+    
+    if [ $? -eq 0 ] && [ -n "$FETCHALL_CONTENT" ]; then
+        # Decode base64 content and save to tools/fetchall
+        DECODE_SUCCESS=false
+        
+        # First try GNU base64 (common on Linux and macOS with coreutils)
+        if echo "$FETCHALL_CONTENT" | base64 -d > "./tools/fetchall" 2>/dev/null; then
+            DECODE_SUCCESS=true
+        # If that fails, try macOS native base64
+        elif echo "$FETCHALL_CONTENT" | base64 -D > "./tools/fetchall" 2>/dev/null; then
+            DECODE_SUCCESS=true
+        fi
+        
+        if [ "$DECODE_SUCCESS" = true ] && [ -f "./tools/fetchall" ]; then
+            chmod +x "./tools/fetchall"
+            echo "✅  fetchall script downloaded to ./tools/fetchall"
+            
+            # Run fetchall to download additional resources
+            echo
+            echo "→ running fetchall to download resources..."
+            ./tools/fetchall
+        else
+            echo "✗  Failed to decode fetchall script"
+            rm -f "./tools/fetchall"  # Clean up any partial file
+        fi
+    else
+        echo "✗  Failed to fetch fetchall script from GitHub"
+        echo "   Make sure you have GitHub CLI (gh) installed and authenticated"
+    fi
+else
+    echo "⚠️  GitHub CLI (gh) not found, skipping fetchall download"
+    echo "   Install gh from: https://cli.github.com/"
+fi
+
+echo
+echo "→ initializing git repository…"
+
+# 5. initialize git repository
+git init
+git branch -M main
+
+# Create initial commit with README.md only
+git add README.md
+git commit -m "feat: initial project setup
+
+Initial FastAPI project with UV dependency management
+
+🤖 Generated with Claude Code"
+
+echo "✅  Git repository initialized with main branch and initial commit"
+
+# 6. Ask user about creating GitHub repository
+echo
+echo "→ GitHub repository creation"
+echo "Would you like to create a public GitHub repository for this project? (y/N)"
+read -r response
+
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "→ creating GitHub repository…"
+    
+    # Check if gh CLI is available
+    if command -v gh &> /dev/null; then
+        # Create public GitHub repository
+        if gh repo create "$proj" --public --source=. --remote=origin --push; then
+            echo "✅  GitHub repository created and code pushed"
+            
+            # Add GITHUB_URL to .env file
+            GITHUB_URL="https://github.com/$(gh api user --jq '.login')/$proj"
+            echo "GITHUB_URL=$GITHUB_URL" >> .env
+            echo "✅  Added GITHUB_URL to .env file"
+        else
+            echo "✗  Failed to create GitHub repository"
+            echo "   You can create it manually later with: gh repo create $proj --public"
+        fi
+    else
+        echo "✗  GitHub CLI (gh) not found"
+        echo "   Install gh from: https://cli.github.com/"
+        echo "   Then create repository manually with: gh repo create $proj --public"
+    fi
+else
+    echo "⚠️  Skipping GitHub repository creation"
+    echo "   You can create it later with: gh repo create $proj --public"
+fi
+
+echo
+echo "→ launching Claude Code…"
+
+# 7. launch claude in the project dir
+claude

@@ -1,0 +1,1 @@
+- always run python files with `uv run`
